@@ -1,4 +1,4 @@
 #pragma once
 
 // Build-Optionen
-#define DEBUG 1
+//#define DEBUG 1

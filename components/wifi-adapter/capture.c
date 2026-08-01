@@ -188,11 +188,11 @@ void IRAM_ATTR update_pixel_steplist()
 }
 
 // Alle Zeilenlängen löschen - das leert den BMP-Zeilenpuffer
-void IRAM_ATTR clear_bmp_lines()
+void IRAM_ATTR clear_done_lines()
 {
 	for (uint32_t i=0;i<ABG_YRes;i++)
 	{
-		bmp_line_length[i] = 0;
+		img_line_done[i] = 0;
 	}
 }
 
@@ -266,159 +266,79 @@ void IRAM_ATTR web_capture_line()
 	// und nun die Pixel in den VGA-Puffer kopieren
 	if (sync>0)
 	{
+		uint32_t xmin = img_x_min + (uint32_t)PIXEL_STEP_LIST+1;
+		uint32_t xmax = img_x_max + (uint32_t)PIXEL_STEP_LIST+1;
+		uint32_t ymin = img_y_min + ABG_START_LINE;
+		uint32_t ymax = img_y_max + ABG_START_LINE;
+
 		if (ABG_Bits_per_sample == 4)
 		{
 			uint32_t bufpos = sync - BSYNC_SAMPLE_ABSTAND;
-			uint8_t* bmpst = (uint8_t*)(((line - ABG_START_LINE)*1024) + (int)bmp_img);
-			uint8_t* bmppos = bmpst;
+			uint32_t* imgst = (uint32_t*)(((line - ABG_START_LINE)*stride) + (uint32_t)img_data);
+			uint32_t* imgpos = imgst;
 			uint8_t* stepende = (uint8_t*)((int)PIXEL_STEP_LIST + ABG_XRes);
-			uint8_t val1 = 0;
-			uint8_t val2 = 0;
-			uint8_t rep = 0;
-			uint8_t dat = (bufpos & 1) ? (((*((bufpos>>1)+buf))>>1) & 3) : (((*((bufpos>>1)+buf))>>5) & 3);
+			uint32_t dat = 0;
 
 			for (uint8_t* steplist=PIXEL_STEP_LIST;steplist<stepende;)
 			{
-				if (rep == 0)
+				dat = (dat<<2) | ((bufpos & 1) ? (((*((bufpos>>1)+buf))>>1) & 3) : (((*((bufpos>>1)+buf))>>5) & 3)); 
+				bufpos+=*steplist;
+				steplist++;
+				if (((int)steplist & 15)==0)
 				{
-					val1 = dat;
-					bufpos+=*steplist;
-					steplist++;
-					val2 = (bufpos & 1) ? (((*((bufpos>>1)+buf))>>1) & 3) : (((*((bufpos>>1)+buf))>>5) & 3);
-					bufpos+=*steplist;
-					steplist++;
-					rep = 2;
-					dat = (bufpos & 1) ? (((*((bufpos>>1)+buf))>>1) & 3) : (((*((bufpos>>1)+buf))>>5) & 3);
-				}
-				if (dat!=val1) 
-				{
-					*bmppos = rep;
-					bmppos++;
-					*bmppos = val2 | (val1<<4);
-					bmppos++;
-					rep = 0;
-					continue;
-				}
-				else
-				{
-					bufpos+=*steplist;
-					dat = (bufpos & 1) ? (((*((bufpos>>1)+buf))>>1) & 3) : (((*((bufpos>>1)+buf))>>5) & 3);
-					steplist++;
-					rep++;
-				}
-				if (dat!=val2) 
-				{
-					*bmppos = rep;
-					bmppos++;
-					*bmppos = val2 | (val1<<4);
-					bmppos++;
-					rep = 0;
-					continue;
-				}
-				else
-				{
-					bufpos+=*steplist;
-					dat = (bufpos & 1) ? (((*((bufpos>>1)+buf))>>1) & 3) : (((*((bufpos>>1)+buf))>>5) & 3);
-					steplist++;
-					rep++;
-				}
-				if (rep>253) 
-				{
-					*bmppos = rep;
-					bmppos++;
-					*bmppos = val2 | (val1<<4);
-					bmppos++;
-					rep = 0;
+					if (*imgpos != dat)
+					{
+						*imgpos = dat;
+						if (xmin>(uint32_t)steplist) xmin = (uint32_t)steplist;
+						if (xmax<(uint32_t)steplist) xmax = (uint32_t)steplist;
+						if (ymin>line) ymin = line;
+						if (ymax<line) ymax = line;
+					}
+					imgpos++;
+					dat = 0;
 				}
 			}
-			if (rep>0)
-			{
-				*bmppos = rep;
-				bmppos++;
-				*bmppos = val2 | (val1<<4);
-				bmppos++;
-			}
-			*bmppos = 0;
-			bmppos++;
-			*bmppos = 0;
-			bmppos++;
-			bmp_line_length[line-ABG_START_LINE] = bmppos - bmpst;
 		}
 		else // 8 bit samples
 		{
-			uint8_t* bufpos = (uint8_t*)((sync - BSYNC_SAMPLE_ABSTAND) + (int)buf);
-			uint8_t* bmpst = (uint8_t*)(((line - ABG_START_LINE)*1024) + (int)bmp_img);
-			uint8_t* bmppos = bmpst;
+			uint8_t* bufpos = (uint8_t*)((sync - BSYNC_SAMPLE_ABSTAND) + (uint32_t)buf);
+			uint32_t* imgst = (uint32_t*)(((line - ABG_START_LINE)*stride) + (uint32_t)img_data);
+			uint32_t* imgpos = imgst;
 			uint8_t* stepende = (uint8_t*)((int)PIXEL_STEP_LIST + ABG_XRes);
-			uint8_t val1 = 0;
-			uint8_t val2 = 0;
-			uint8_t rep = 0;
+			uint32_t dat = 0;
 
 			for (uint8_t* steplist=PIXEL_STEP_LIST;steplist<stepende;)
 			{
-				if (rep == 0)
+				dat = (dat<<2) | ((*bufpos)>>1 & 3); 
+				bufpos+=*steplist;
+				steplist++;
+				if (((int)steplist & 15)==0)
 				{
-					val1 = *bufpos;
-					bufpos+=*steplist;
-					steplist++;
-					val2 = *bufpos;
-					bufpos+=*steplist;
-					steplist++;
-					rep = 2;
-				}
-				if (*bufpos!=val1) 
-				{
-					*bmppos = rep;
-					bmppos++;
-					*bmppos = ((val2>>1)&3) | ((val1<<3)&0x30);
-					bmppos++;
-					rep = 0;
-					continue;
-				}
-				else
-				{
-					bufpos+=*steplist;
-					steplist++;
-					rep++;
-				}
-				if (*bufpos!=val2) 
-				{
-					*bmppos = rep;
-					bmppos++;
-					*bmppos = ((val2>>1)&3) | ((val1<<3)&0x30);
-					bmppos++;
-					rep = 0;
-					continue;
-				}
-				else
-				{
-					bufpos+=*steplist;
-					steplist++;
-					rep++;
-				}
-				if (rep>253) 
-				{
-					*bmppos = rep;
-					bmppos++;
-					*bmppos = ((val2>>1)&3) | ((val1<<3)&0x30);
-					bmppos++;
-					rep = 0;
+					if (*imgpos != dat)
+					{
+						*imgpos = dat;
+						if (xmin>(uint32_t)steplist) xmin = (uint32_t)steplist;
+						if (xmax<(uint32_t)steplist) xmax = (uint32_t)steplist;
+						if (ymin>line) ymin = line;
+						if (ymax<line) ymax = line;
+					}
+					imgpos++;
+					dat = 0;
 				}
 			}
-			if (rep>0)
-			{
-				*bmppos = rep;
-				bmppos++;
-				*bmppos = ((val2>>1)&3) | ((val1<<3)&0x30);
-				bmppos++;
-			}
-			*bmppos = 0;
-			bmppos++;
-			*bmppos = 0;
-			bmppos++;
-			bmp_line_length[line-ABG_START_LINE] = bmppos - bmpst;
+
 		}
+		xmax -= (uint32_t)PIXEL_STEP_LIST + 1;
+		xmin -= (uint32_t)PIXEL_STEP_LIST + 1;
+		ymax -= ABG_START_LINE;
+		ymin -= ABG_START_LINE;
+
+		if (img_x_max < (uint32_t)xmax) img_x_max = (uint32_t)xmax;
+		if (img_x_min > (uint32_t)xmin) img_x_min = (uint32_t)xmin;
+		if (img_y_max < ymax) img_y_max = ymax;
+		if (img_y_min > ymin) img_y_min = ymin;
 	}
+	img_line_done[line-ABG_START_LINE] = 1;
 	*next=0xc0000000;
 }
 
@@ -436,10 +356,10 @@ void IRAM_ATTR web_capture_task(void*)
 }
 
 // Pixelkopier und Komprimier-Task, läuft auf core 0
-void IRAM_ATTR web_capture_bmp_image()
+uint8_t IRAM_ATTR web_capture_image()
 {
 	// bmp clear
-	clear_bmp_lines();
+	clear_done_lines();
 
 	// sample buffer clear
     for (uint8_t z=0;z<_ABG_SAMPLE_BUFFER_COUNT;z++)
@@ -455,7 +375,7 @@ void IRAM_ATTR web_capture_bmp_image()
         if (a==0)
         {
 			// timeout!
-            return;
+            return 0;
         }
     }
 
@@ -482,7 +402,7 @@ void IRAM_ATTR web_capture_bmp_image()
 					ABG_Last_Scanl_Repeat = ABG_Last_Scan_Line;
                     for (uint32_t i=0;i<ABG_YRes;i++)
                     {
-                        if (bmp_line_length[i] != 0) z++;
+                        if (img_line_done[i] != 0) z++;
                     }
                 }
                 else
@@ -501,7 +421,7 @@ void IRAM_ATTR web_capture_bmp_image()
 					else
 					{
 						ABG_Last_Scanl_Repeat = ABG_Last_Scan_Line;
-						clear_bmp_lines();
+						clear_done_lines();
 					}
                 }
                 t = false;
@@ -523,4 +443,5 @@ void IRAM_ATTR web_capture_bmp_image()
     }
     ABG_RUN = false;
 	while (Task2Running);
+	return (a==0) ? 0 : 1;
 }

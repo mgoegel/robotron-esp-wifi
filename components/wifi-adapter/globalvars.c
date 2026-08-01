@@ -108,7 +108,7 @@ const struct VGASTATIC _STATIC_VGA_VALS[] = {
 		.vRes=400,
 		.frequency=25175000,
 		.vPol=1,
-		.hPol=1,
+		.hPol=0,
 	},
 	{
 		.name="640x480x60",
@@ -121,8 +121,8 @@ const struct VGASTATIC _STATIC_VGA_VALS[] = {
 		.vBack=33,
 		.vRes=480,
 		.frequency=25175000,
-		.vPol=1,
-		.hPol=1,
+		.vPol=0,
+		.hPol=0,
 	},
 	{
 		.name="800x600x56",
@@ -174,8 +174,14 @@ uint8_t ABG_Bits_per_sample = 0;
 uint16_t ABG_Total_Scanlines = 0;
 uint16_t ABG_Total_Scanl_Repeat = 0;
 uint16_t ABG_Last_Scanl_Repeat = 0;
-uint16_t* bmp_line_length = NULL;
-uint8_t* bmp_img = NULL;
+uint32_t* img_data = NULL;
+uint8_t* img_line_done;
+uint32_t stride = 0;
+volatile uint32_t img_x_min;
+volatile uint32_t img_x_max;
+volatile uint32_t img_y_min;
+volatile uint32_t img_y_max;
+
 uint32_t bmp_palette[10];
 
 const uint16_t OSD_HIGHT = 164;

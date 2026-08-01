@@ -28,6 +28,9 @@
 #ifdef DEBUG
 #define PIN_NUM_DEBUG_SPI 13//nur für debug
 #define PIN_NUM_DEBUG_COPY 14//nur für debug
+#else
+#define PIN_NUM_KEYBOARD1 13
+#define PIN_NUM_KEYBOARD2 14
 #endif
 
 // Pin-Definition vor-ausgerechnet für die highint5.S --> der Assembler scheint keine Symbole auszurechnen!

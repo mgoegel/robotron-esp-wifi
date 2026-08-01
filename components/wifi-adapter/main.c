@@ -6,6 +6,7 @@
 #include "capture.h"
 #include "nvs.h"
 #include "wlan.h"
+#include "keyboard.h"
 
 // Hauptprogramm
 void IRAM_ATTR app_main(void)
@@ -17,11 +18,16 @@ void IRAM_ATTR app_main(void)
 	setup_vga_buffer();
 	setup_vga_mode();
 
-	bmp_img = heap_caps_malloc(1024 * ABG_YRes, MALLOC_CAP_DEFAULT | MALLOC_CAP_SPIRAM);
-    bmp_line_length = heap_caps_malloc(2 * ABG_YRes, MALLOC_CAP_INTERNAL);
+	stride = (ABG_XRes / 4) + ((ABG_XRes & 3)!=0 ? 1 : 0);
+	img_data = heap_caps_malloc(ABG_YRes * stride, MALLOC_CAP_DEFAULT | MALLOC_CAP_INTERNAL);
+
+	img_line_done = heap_caps_malloc(ABG_YRes, MALLOC_CAP_DEFAULT | MALLOC_CAP_INTERNAL);
 
     setup_abg();
 	xTaskCreatePinnedToCore(osd_task,"osd_task",8000,NULL,0,NULL,0);
 	setup_wlan(wlan_mode);
+	#ifndef DEBUG
+	setup_keyboard();
+	#endif
 }
 

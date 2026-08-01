@@ -10,6 +10,7 @@
 #define _COLORSCHEME_COUNT 3 // Anzahl unterstützter Farbschema (+custom)
 #define _VGAMODE_COUNT 4 // Anzahl VGA-Modes (640x400x70, 640x480x60, 800x600x56, 800x600x60)
 #define Language_count 2
+#define VERSION "2.1"
 
 // Statische Struktur - Systemkonstanten
 struct SYSSTATIC {
@@ -104,11 +105,16 @@ extern volatile uint32_t bsyn_clock_last;
 extern volatile uint32_t bsyn_clock_frame;
 extern volatile uint32_t BSYNC_SAMPLE_ABSTAND;
 
-extern uint16_t* bmp_line_length;
-extern uint8_t* bmp_img;
+extern uint32_t* img_data;
+extern uint32_t stride;
+extern uint8_t* img_line_done;
 extern uint32_t bmp_palette[10];
 extern uint8_t Current_Color_Scheme;
 extern uint32_t Custom_Colors[4];
+extern volatile uint32_t img_x_min;
+extern volatile uint32_t img_x_max;
+extern volatile uint32_t img_y_min;
+extern volatile uint32_t img_y_max;
 
 extern uint8_t this_app_id;
 extern uint8_t next_app_id;

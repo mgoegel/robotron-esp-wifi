@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robotron ESP32 VGA-Konverter</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f4f8;
+            margin: 20px;
+        }
+        canvas {
+            border: 2px solid #333;
+            background-color: #fff;
+            image-rendering: pixelated;
+        }
+        #status {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h2>Robotron ESP32 VGA-Konverter</h2>
+    <canvas id="bildschirm" width="640" height="400"></canvas>
+
+    <script>
+        const socket = new WebSocket(`ws://${window.location.host}/screen.soc`);
+        const canvas = document.getElementById("bildschirm");
+        const ctx = canvas.getContext("2d");
+        socket.binaryType = "arraybuffer";
+        let init = false;
+        
+        // Warteschlange für Tastatureingaben
+        const tastenQueue = []; 
+        const utf8Encoder = new TextEncoder();
+
+        // Farbpalette (0xAABBGGRR)
+        const PALETTE32 = new Uint32Array([0xFF000000, 0xFF005500, 0xFF00AA00,0xFF00FF00]);
+
+        function nextFramePlease() 
+        {
+            if (tastenQueue.length > 0) 
+            {
+                const taste = tastenQueue.shift();
+                const tastenBytes = utf8Encoder.encode(taste);
+                const befehl = new Uint8Array(1 + tastenBytes.length);
+                befehl[0] = 3;
+                befehl.set(tastenBytes, 1);
+                socket.send(befehl);
+                return;
+            }
+
+            const befehl = new Uint8Array(1);
+            befehl[0] = (init) ? 2 : 1;
+            socket.send(befehl);
+        }
+
+        window.addEventListener("keydown", (event) => 
+        {
+            event.preventDefault(); 
+            tastenQueue.push("+"+event.key);
+        });
+
+        window.addEventListener("keyup", (event) => 
+        {
+            event.preventDefault(); 
+            tastenQueue.push("-"+event.key);
+        });
+
+        socket.onopen = () => 
+        { 
+            nextFramePlease(); 
+        };
+
+        socket.onmessage = async (event) => 
+        {
+            const buffer = event.data;
+
+            if (buffer.byteLength > 8) 
+            {
+                const headerView = new Uint16Array(buffer, 0, 4);
+                const x = headerView[0];
+                const y = headerView[1];
+                const breite = headerView[2];
+                const hoehe = headerView[3];
+
+                if (!init)
+                {
+                    canvas.width = breite;
+                    canvas.height = hoehe;
+                }
+
+                const gesamtPixel = breite * hoehe;
+                const rgbaArray = new Uint32Array(gesamtPixel);
+                const rohDaten32 = new Uint32Array(buffer, 8, (buffer.byteLength - 8) / 4);
+                let pixelIndex = 0;
+                for (let i = 0; i < rohDaten32.length; i++) 
+                {
+                    const chunk = rohDaten32[i];
+                    for (let shift = 30; shift >= 0; shift -= 2) 
+                    {
+                        if (pixelIndex >= gesamtPixel) break;
+                        const farbIndex = (chunk >> shift) & 0x03;
+                        rgbaArray[pixelIndex++] = PALETTE32[farbIndex];
+                    }
+                }
+                const bildDatenView = new Uint8ClampedArray(rgbaArray.buffer);
+                const imageData = new ImageData(bildDatenView, breite, hoehe);
+                ctx.putImageData(imageData, x, y);
+                
+                init = true;
+            }
+            nextFramePlease();
+        };
+    </script>
+</body>
+</html>
