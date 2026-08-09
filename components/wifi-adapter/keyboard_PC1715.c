@@ -2,11 +2,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "driver/gpio.h"
-#include "esp_rom/rom.h"
+// #include "esp_rom/rom.h"
 
 
 // Queue for keyboard transmission
 QueueHandle_t key_queue = NULL;
+
+#define KEY_QUEUE_SIZE 2*5
 
 // State machine for bit transmission
 typedef enum {
@@ -24,33 +26,6 @@ typedef struct {
 } transmission_context_t;
 
 static transmission_context_t tx_ctx;
-
-void setup_keyboard_PC1715(void) {
-    // Configure CLK and DATA pins as outputs
-    gpio_pad_select_gpio(PIN_NUM_KEYBOARD1);
-    gpio_pad_select_gpio(PIN_NUM_KEYBOARD2);
-    // gpio_set_direction(PIN_NUM_KEYBOARD1, GPIO_MODE_OUTPUT);
-    // gpio_set_direction(PIN_NUM_KEYBOARD2, GPIO_MODE_OUTPUT);
-
-    // In setup_keyboard_PC1715()
-    ESP_ERROR_CHECK(gpio_set_direction(PIN_NUM_KEYBOARD1, GPIO_MODE_OUTPUT));
-    ESP_ERROR_CHECK(gpio_set_direction(PIN_NUM_KEYBOARD2, GPIO_MODE_OUTPUT));
-    
-    gpio_set_level(PIN_NUM_KEYBOARD1, 0);
-    gpio_set_level(PIN_NUM_KEYBOARD2, 0);
-    
-    // Initialize transmission context
-    tx_ctx.state = STATE_IDLE;
-    tx_ctx.bit_index = 0;
-    
-    key_queue = ESP_ERROR_CHECK(xQueueCreate(KEY_QUEUE_SIZE, sizeof(uint8_t)));
-    // Create queue for key transmission
-    // key_queue = xQueueCreate(5, sizeof(uint8_t));
-    configASSERT(key_queue);
-    
-    // Create dedicated transmission task
-    xTaskCreate(send_key_task, "key_transmit", 2048, NULL, 5, NULL);
-}
 
 static void send_bit(bool bit) {
     gpio_set_level(PIN_NUM_KEYBOARD2, bit);
@@ -78,6 +53,8 @@ void send_key_task(void *pvParameters) {
             // Process until transmission complete
             while (tx_ctx.state != STATE_IDLE) {
                 switch (tx_ctx.state) {
+                    case STATE_IDLE:
+                        break;
                     case STATE_START_BIT:
                         send_bit(1);  // Start bit (high)
                         tx_ctx.state = STATE_DATA_BITS;
@@ -111,3 +88,24 @@ void send_key_PC1715(uint8_t key_code) {
     // Enqueue key code for transmission task
     xQueueSend(key_queue, &key_code, portMAX_DELAY);
 }
+
+void setup_keyboard_PC1715(void) {
+    // Configure CLK and DATA pins as outputs (pad selection is handled by the driver on ESP32-S3)
+    ESP_ERROR_CHECK(gpio_set_direction(PIN_NUM_KEYBOARD1, GPIO_MODE_OUTPUT));
+    ESP_ERROR_CHECK(gpio_set_direction(PIN_NUM_KEYBOARD2, GPIO_MODE_OUTPUT));
+    
+    gpio_set_level(PIN_NUM_KEYBOARD1, 0);
+    gpio_set_level(PIN_NUM_KEYBOARD2, 0);
+    
+    // Initialize transmission context
+    tx_ctx.state = STATE_IDLE;
+    tx_ctx.bit_index = 0;
+    
+    // Create queue for key transmission
+    key_queue = xQueueCreate(KEY_QUEUE_SIZE, sizeof(uint8_t));
+    configASSERT(key_queue);
+    
+    // Create dedicated transmission task
+    xTaskCreate(send_key_task, "key_transmit", 2048, NULL, 5, NULL);
+}
+
